@@ -1,0 +1,159 @@
+# Sander Bogaert 2015
+# Bash template/snippets
+#
+# This file contains some basic bash stuff I use in various scripts.
+# The current versions are targetting/tested on Mac OS X.
+#
+#! /bin/bash
+set -e
+
+# usage help {{{
+print_help_exit() {
+cat<<HELP
+Usage: $0 -c '<REQUIRED> -a [OPTIONAL]'
+
+    -c REQUIRED          (req) Description for -c flag.
+
+HELP
+exit 1
+}
+#}}}
+
+# Helper functions {{{
+# Cleans up the install in case we failed half through.
+function warn() {
+    printf "\t${txt_warn}%s${txt_reset}\n\n" "$1" 1>&2
+}
+
+function error() {
+    printf "\n\t${txt_error}! %s${txt_reset}\n\n" "$1" 1>&2
+    exit 1
+}
+
+function info() {
+    printf "\n\t${txt_info}%s...${txt_reset}\n\n" "$1" 1>&2
+}
+
+function inside_trim() {
+    echo $(echo "$1" | tr -d '\n' | tr -d '[:blank:]')
+}
+
+function lower_and_trim() {
+    echo $(echo "$1" | tr -d '\n' | tr '[:upper:]' '[:lower:]' | tr -d '[:blank:]' )
+}
+
+# arg1 string to uppercase and return in
+function uppercase() {
+    local upper=$(tr '[:lower:]' '[:upper:]' <<< ${1:0:1})${1:1}
+    echo $upper
+}
+
+# arg1: string to check whether it's not empty¬
+# arg2: name of the parameter that should have been set¬
+function checkempty() {
+  if [ x"$1" = x ]; then
+    echo ${txt_error}
+    echo "Error: Missing required parameter $2"
+    echo ${txt_reset}
+    print_help_exit
+  fi
+}
+
+# arg1: String with question
+# arg2: Variable with default value
+function input() {
+    local ret
+    [[ ! -z $2 ]] && def="[$2]"
+    read -p "${txt_question}$1${txt_reset} $def    " ret
+
+    # if user entered a value, set it
+    [[ -z $ret ]] && ret=$2
+
+    echo $ret
+}
+
+# arg1: String with question
+# arg2: Variable with default value
+# warn when no value was provided
+function input_req() {
+    local response=$(input "$1" "$2")
+
+    while [[ -z $response ]]
+    do
+        warn "Required parameter, please enter a value."
+        local response=$(input "$1" "$2")
+    done
+
+    echo $response
+}
+
+# Ask a user ot confirm, return > 0 for false, 0 for true
+function confirm() {
+    if [[ $1 == "y" ]]
+    then
+        options="Y/n"
+        ret=0
+    else
+        options="y/N"
+        ret=1
+    fi
+
+    read -p "${txt_info}$2${txt_reset} [$options] " response
+
+    if [[ ! -z $response ]]; then
+        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+        then
+            ret=0
+        else
+            ret=1
+        fi
+    fi
+
+    return $ret
+}
+#}}}
+
+# Print style {{{
+txtbld=$(tput bold)                         # Bold
+txtund=$(tput sgr 0 1)                      # Underline
+
+txtred=$(tput setaf 1)                      # Red
+txtgrn=$(tput setaf 2)                      # Green
+txtylw=$(tput setaf 3)                      # Yellow
+txtwht=$(tput setaf 7)                      # White
+
+txt_reset=$(tput sgr0)                         # Reset
+txt_info=${txtbld}                             # Info
+txt_error=${txtred}${txtbld}                   # Error
+txt_warn=${txtred}${txtbld}                    # Warn
+# }}}
+
+# global state
+readonly VAR='blaat'
+VAR2='default value'
+VAR3=
+
+# Parse arguments {{{
+while getopts c:a:h\? opt; do
+    case $opt in
+        c) VAR2="$OPTARG"
+            ;;
+        a) VAR3="$OPTARG"
+            ;;
+        h | \?) print_help_exit
+            ;;
+    esac
+done
+shift `expr $OPTIND - 1`
+
+# check required arguments
+checkempty "$COMMAND" -c
+# }}}
+
+# check for programms {{{
+req_progs=(git curl sed)
+for p in ${req_progs[@]}; do
+  hash "$p" 2>/dev/null || \
+  { echo >&2 " Required program \"$p\" not installed."; exit 1; }
+done
+# }}}
